@@ -1,5 +1,15 @@
-import { IBaseQueries, ContextValue } from '@sqltools/types';
+import { IBaseQueries, ContextValue, NSDatabase } from '@sqltools/types';
 import queryFactory from '@sqltools/base-driver/dist/lib/factory';
+
+function escapeTableName(table: Partial<NSDatabase.ITable> | string) {
+  let items: string[] = [];
+  let tableObj = typeof table === 'string' ? <NSDatabase.ITable>{ label: table } : table;
+
+  tableObj.schema && items.push(`"${tableObj.schema}"`);
+  tableObj.database && items.push(`"${tableObj.database}"`);
+  items.push(`"${tableObj.label}"`);
+  return items.join('.');
+}
 
 /** write your queries here go fetch desired data. This queries are just examples copied from SQLite driver */
 
@@ -22,14 +32,14 @@ ORDER BY cid ASC
 
 const fetchRecords: IBaseQueries['fetchRecords'] = queryFactory`
 SELECT *
-FROM ${p => (p.table.label || p.table)}
+FROM ${p => escapeTableName(p.table)}
 OFFSET ${p => p.offset || 0}
 LIMIT ${p => p.limit || 50};
 `;
 
 const countRecords: IBaseQueries['countRecords'] = queryFactory`
 SELECT count(1) AS total
-FROM ${p => (p.table.label || p.table)};
+FROM ${p => escapeTableName(p.table)};
 `;
 
 const fetchTablesAndViews = (type: ContextValue, tableType = 'table'): IBaseQueries['fetchTables'] => queryFactory`
@@ -51,6 +61,7 @@ FROM sqlite_master
 ${p => p.search ? `WHERE LOWER(name) LIKE '%${p.search.toLowerCase()}%'` : ''}
 ORDER BY name
 `;
+
 const searchColumns: IBaseQueries['searchColumns'] = queryFactory`
 SELECT C.name AS label,
   T.name AS "table",
