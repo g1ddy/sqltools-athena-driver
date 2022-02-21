@@ -8,6 +8,7 @@ import reservedWordsCompletion from './reserved-words';
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
   queries = queries
+  lastUsedDatabase = ''
 
   /**
    * If you driver depends on node packages, list it below on `deps` prop.
@@ -165,7 +166,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       childType: ContextValue.NO_CHILD,
       isNullable: true,
       iconName: 'column',
-      table: parent,
+      table: item.label,
     }));
   }
 
@@ -188,38 +189,44 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           childType: ContextValue.DATABASE,
         }));
       case ContextValue.DATABASE:
-        const catalog = await db.listDatabases({
-          CatalogName: parent.schema,
-        }).promise();
-
-        return catalog.DatabaseList.map((database) => ({
-          database: database.Name,
-          label: database.Name,
-          type: item.childType,
-          schema: parent.schema,
-          childType: ContextValue.TABLE,
-        }));
+        return await this.getDatabases(parent, item.childType);
       case ContextValue.TABLE:
       case ContextValue.VIEW:
-        return await this.getTablesAndViews(item.childType, parent);
+        return await this.getTablesAndViews(parent, item.childType);
     }
     return [];
   }
 
-  private getTablesAndViews = async (itemType?: ContextValue, parent?: NSDatabase.SearchableItem) => {
+  private getDatabases = async(parent: NSDatabase.SearchableItem, itemType?: ContextValue) => {
+    const db = await this.connection;
+    
+    const catalog = await db.listDatabases({
+      CatalogName: parent.schema,
+    }).promise();
+
+    return catalog.DatabaseList.map((database) => ({
+      database: database.Name,
+      label: database.Name,
+      type: itemType,
+      schema: parent.schema,
+      childType: ContextValue.TABLE,
+    }));
+  }
+
+  private getTablesAndViews = async (parent: any, itemType?: ContextValue, expression?: string) => {
     const db = await this.connection;
 
     const tableMetadata = await db.listTableMetadata({
-      CatalogName: parent?.schema,
-      DatabaseName: parent?.database,
-      Expression: null,
+      CatalogName: parent.schema,
+      DatabaseName: parent.database,
+      Expression: expression,
     }).promise();
 
     let result = tableMetadata.TableMetadataList.map(row => ({
-      database: parent?.database,
+      database: parent.database,
       label: row.Name,
       type: row.TableType == 'EXTERNAL_TABLE' ? ContextValue.TABLE : ContextValue.VIEW,
-      schema: parent?.schema,
+      schema: parent.schema,
       childType: ContextValue.COLUMN,
     }));
 
@@ -233,85 +240,52 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
    * This method is a helper for intellisense and quick picks.
    */
   public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
+    // todo figure out other way to retrieve schema
+    let schema = 'AwsDataCatalog'
+
     switch (itemType) {
       case ContextValue.TABLE:
       case ContextValue.VIEW:
-        let j = 0;
-        return [{
-          database: 'fakedb',
-          label: `${search || 'table'}${j++}`,
-          type: itemType,
-          schema: 'fakeschema',
-          childType: ContextValue.COLUMN,
-        }, {
-          database: 'fakedb',
-          label: `${search || 'table'}${j++}`,
-          type: itemType,
-          schema: 'fakeschema',
-          childType: ContextValue.COLUMN,
-        },
-        {
-          database: 'fakedb',
-          label: `${search || 'table'}${j++}`,
-          type: itemType,
-          schema: 'fakeschema',
-          childType: ContextValue.COLUMN,
-        }]
+        
+        let tableParts = search.split('.');
+        let databaseName = tableParts[0].toLowerCase();
+
+        if (tableParts.length <= 1){
+          const databases = await this.rawQuery(`SHOW DATABASES LIKE '.*${databaseName}.*'`);
+
+          return databases.ResultSet.Rows
+            .map((row) => ({
+              database: row.Data[0].VarCharValue,
+              label: row.Data[0].VarCharValue,
+              type: ContextValue.DATABASE,
+              schema: schema,
+              childType: ContextValue.TABLE,
+            }));
+        }
+        
+        this.lastUsedDatabase = databaseName;
+        let tableName = tableParts[1].toLowerCase();
+        let expression = `.*${tableName}.*`;
+        
+        let tablesAndViews = await this.getTablesAndViews({ schema: schema, database: this.lastUsedDatabase}, null, expression)
+
+        return tablesAndViews;
       case ContextValue.COLUMN:
-        let i = 0;
-        return [
-          {
-            database: 'fakedb',
-            label: `${search || 'porra'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          }, {
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          }, {
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          }, {
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          }, {
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          }
-        ];
+        if (!_extraParams
+            || !_extraParams.tables
+            || !_extraParams.tables.length)
+          return [];
+
+        let table = _extraParams.tables[0];
+          
+        let columns = await this.getColumns({
+          schema: schema,
+          // todo database isn't properly populated, using lastUsed workaround for now
+          database: table.database || this.lastUsedDatabase,
+          label: table.label
+        });
+
+        return columns;
     }
     return [];
   }
