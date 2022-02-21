@@ -3,6 +3,7 @@ import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue 
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
 import { Athena, Credentials, SharedIniFileCredentials } from 'aws-sdk';
+import reservedWordsCompletion from './reserved-words';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -58,6 +59,9 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     const queryExecution = await db.startQueryExecution({
       QueryString: query,
       WorkGroup: this.credentials.workgroup
+    }, (err, data) => {
+      if (err)
+        console.log(err, err.stack)
     }).promise();
 
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
@@ -65,7 +69,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     let queryCheckExecution;
 
     do {
-      queryCheckExecution = await db.getQueryExecution({ 
+      queryCheckExecution = await db.getQueryExecution({
         QueryExecutionId: queryExecution.QueryExecutionId,
       }).promise();
 
@@ -83,8 +87,8 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   }
 
   public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
-    const result = await this.rawQuery(queries.toString());
-
+    var queryString = queries.toString();
+    const result = await this.rawQuery(queryString);
 
     const columns = result.ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
     const resultSet = result.ResultSet.Rows.slice(1).map(({ Data }) => Object.assign({}, ...Data.map((column, i) => ({ [columns[i]]: column.VarCharValue }))));
@@ -92,9 +96,9 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     const response: NSDatabase.IResult[] = [{
       cols: columns,
       connId: this.getId(),
-      messages: [{ date: new Date(), message: `Query ok with ${result.ResultSet.Rows.length} results`}],
+      messages: [{ date: new Date(), message: `Query ok with ${result.ResultSet.Rows.length} results` }],
       results: resultSet,
-      query: queries.toString(),
+      query: queryString,
       requestId: opt.requestId,
       resultId: generateId(),
     }];
@@ -115,8 +119,6 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
    * it gets the child items based on current item
    */
   public async getChildrenForItem({ item, parent }: Arg0<IConnectionDriver['getChildrenForItem']>) {
-    const db = await this.connection;
-
     switch (item.type) {
       case ContextValue.CONNECTION:
       case ContextValue.CONNECTED_CONNECTION:
@@ -133,41 +135,47 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           { label: 'Views', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.VIEW },
         ];
       case ContextValue.TABLE:
+        return await this.getColumns(item, parent);
       case ContextValue.VIEW:
-        const tableMetadata = await db.getTableMetadata({
-          CatalogName: item.schema,
-          DatabaseName: item.database,
-          TableName: item.label
-        }).promise();
-
-        return [
-          ...tableMetadata.TableMetadata.Columns,
-          ...tableMetadata.TableMetadata.PartitionKeys,
-        ].map(column => ({
-          label: column.Name,
-          type: ContextValue.COLUMN,
-          dataType: column.Type,
-          schema: item.schema,
-          database: item.database,
-          childType: ContextValue.NO_CHILD,
-          isNullable: true,
-          iconName: 'column',
-          table: parent,
-        }));
       case ContextValue.RESOURCE_GROUP:
         return this.getChildrenForGroup({ item, parent });
     }
-    
+
     return [];
+  }
+
+  private getColumns = async (item: any, parent?: NSDatabase.SearchableItem) => {
+    const db = await this.connection;
+
+    const tableMetadata = await db.getTableMetadata({
+      CatalogName: item.schema,
+      DatabaseName: item.database,
+      TableName: item.label
+    }).promise();
+
+    return [
+      ...tableMetadata.TableMetadata.Columns,
+      ...tableMetadata.TableMetadata.PartitionKeys,
+    ].map(column => ({
+      label: column.Name,
+      type: ContextValue.COLUMN,
+      dataType: column.Type,
+      schema: item.schema,
+      database: item.database,
+      childType: ContextValue.NO_CHILD,
+      isNullable: true,
+      iconName: 'column',
+      table: parent,
+    }));
   }
 
   /**
    * This method is a helper to generate the connection explorer tree.
    * It gets the child based on child types
    */
-  private async getChildrenForGroup({ parent, item }: Arg0<IConnectionDriver['getChildrenForItem']>) {
+  private async getChildrenForGroup({ item, parent }: Arg0<IConnectionDriver['getChildrenForItem']>) {
     const db = await this.connection;
-    
+
     switch (item.childType) {
       case ContextValue.SCHEMA:
         const catalogs = await db.listDataCatalogs().promise();
@@ -192,32 +200,33 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           childType: ContextValue.TABLE,
         }));
       case ContextValue.TABLE:
-        const tables = await this.rawQuery(`SHOW TABLES IN \`${parent.database}\``);
-        const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
-
-        const viewsSet = new Set(views.ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
-
-        return tables.ResultSet.Rows
-          .filter((row) => !viewsSet.has(row.Data[0].VarCharValue))
-          .map((row) => ({
-            database: parent.database,
-            label: row.Data[0].VarCharValue,
-            type: item.childType,
-            schema: parent.schema,
-            childType: ContextValue.COLUMN,
-          }));
       case ContextValue.VIEW:
-        const views2 = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
-        
-        return views2.ResultSet.Rows.map((row) => ({
-          database: parent.database,
-          label: row.Data[0].VarCharValue,
-          type: item.childType,
-          schema: parent.schema,
-          childType: ContextValue.COLUMN,
-        }));
+        return await this.getTablesAndViews(item.childType, parent);
     }
     return [];
+  }
+
+  private getTablesAndViews = async (itemType?: ContextValue, parent?: NSDatabase.SearchableItem) => {
+    const db = await this.connection;
+
+    const tableMetadata = await db.listTableMetadata({
+      CatalogName: parent?.schema,
+      DatabaseName: parent?.database,
+      Expression: null,
+    }).promise();
+
+    let result = tableMetadata.TableMetadataList.map(row => ({
+      database: parent?.database,
+      label: row.Name,
+      type: row.TableType == 'EXTERNAL_TABLE' ? ContextValue.TABLE : ContextValue.VIEW,
+      schema: parent?.schema,
+      childType: ContextValue.COLUMN,
+    }));
+
+    if (itemType != null)
+      result = result.filter((row) => row.type === itemType);
+
+    return result;
   }
 
   /**
@@ -234,7 +243,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           type: itemType,
           schema: 'fakeschema',
           childType: ContextValue.COLUMN,
-        },{
+        }, {
           database: 'fakedb',
           label: `${search || 'table'}${j++}`,
           type: itemType,
@@ -261,7 +270,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -271,7 +280,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -281,7 +290,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -291,7 +300,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -308,6 +317,6 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   }
 
   public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
-    return {};
+    return reservedWordsCompletion;
   }
 }
