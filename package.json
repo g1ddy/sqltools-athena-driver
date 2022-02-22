@@ -1,8 +1,8 @@
 {
-  "name": "sqltools-athena-driver",
-  "displayName": "SQLTools AWS Athena Driver",
-  "description": "SQLTools AWS Athena Driver",
-  "version": "0.0.4",
+  "name": "sqltools-athena-driver-v2",
+  "displayName": "SQLTools Driver for AWS Athena Engine v2",
+  "description": "SQLTools Driver for AWS Athena Engine v2",
+  "version": "0.0.5",
   "engines": {
     "vscode": "^1.42.0"
   },

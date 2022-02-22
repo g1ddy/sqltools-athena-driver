@@ -1,8 +1,8 @@
-# SQLTools driver for AWS Athena
+# SQLTools driver for AWS Athena Envine v2
 
 ## Description
 
-A Visual Studio Code extension which extends the [SQLTools extension](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools), with a driver to work with AWS Athena. It supports tables and views, as well as running queries.
+A Visual Studio Code extension which extends the [SQLTools extension](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools), with a driver to work with AWS Athena Engine v2. It supports tables and views, as well as running queries.
 
 ## Configuration
 
