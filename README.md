@@ -12,9 +12,9 @@ When creating a new connection with AWS Athena, you'll be prompted to fill some 
 
 ![Connection setup print](./docs/img/setup-connection.png)
 
-### Access Key Id & Secret Access Key
+### Access Key Id & Secret Access Key OR Profile
 
-You can create an authentication using [AWS IAM](https://aws.amazon.com/iam/). Be sure that the IAM user has the right [privileges](https://aws.amazon.com/premiumsupport/knowledge-center/access-denied-athena/) to query AWS Athena.
+You can create an authentication using [AWS IAM](https://aws.amazon.com/iam/) or by using a named profile. Be sure that the IAM user/profile has the right [privileges](https://aws.amazon.com/premiumsupport/knowledge-center/access-denied-athena/) to query AWS Athena.
 
 ### Workgroup
 
