@@ -33,7 +33,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       return this.connection;
     }
 
-    if (this.credentials.connectionMethod !== 'Profile')
+    if (this.credentials.connectionMethod.toLowerCase() !== 'profile')
       var credentials = new Credentials({
         accessKeyId: this.credentials.accessKeyId,
         secretAccessKey: this.credentials.secretAccessKey,
@@ -60,7 +60,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     const queryExecution = await db.startQueryExecution({
       QueryString: query,
       WorkGroup: this.credentials.workgroup
-    }, (err, data) => {
+    }, (err/*, data*/) => {
       if (err)
         console.log(err, err.stack)
     }).promise();
@@ -136,7 +136,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           { label: 'Views', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.VIEW },
         ];
       case ContextValue.TABLE:
-        return await this.getColumns(item, parent);
+        return await this.getColumns(item);
       case ContextValue.VIEW:
       case ContextValue.RESOURCE_GROUP:
         return this.getChildrenForGroup({ item, parent });
@@ -145,7 +145,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     return [];
   }
 
-  private getColumns = async (item: any, parent?: NSDatabase.SearchableItem) => {
+  private getColumns = async (item: any) => {
     const db = await this.connection;
 
     const tableMetadata = await db.getTableMetadata({

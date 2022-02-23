@@ -4,19 +4,34 @@
   "description": "SQLTools Driver for AWS Athena Engine v2",
   "version": "0.0.5",
   "engines": {
-    "vscode": "^1.42.0"
+    "vscode": "^1.42.0",
+    "node": ">=10"
   },
-  "publisher": "brunoventura",
+  "publisher": "g1ddy",
   "license": "MIT",
   "icon": "icons/extension_icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kovihq/sqltools-athena-driver"
+    "url": "https://github.com/g1ddy/sqltools-athena-driver"
   },
   "bugs": {},
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "ts": "tsc -p .",
+    "clean": "rimraf -rf out dist *.vsix",
+    "tsc-check": "yarn run ts --noEmit --preserveWatchOutput",
+    "prebuild": "yarn run clean && yarn run tsc-check",
+    "esbuild": "esbuild --platform=node --tsconfig=./tsconfig.json --external:vscode --log-level=error --color=true --format=cjs",
+    "compile:ext": "yarn run esbuild --bundle ./src/extension.ts --outfile=./out/extension.js --target=es2017 --define:process.env.PRODUCT=\"'ext'\"",
+    "compile:ls": "yarn run esbuild --bundle ./src/ls/plugin.ts --outfile=./out/ls/plugin.js --target=es2015 --define:process.env.PRODUCT=\"'ls'\"",
+    "build:ext": "yarn run compile:ext --define:process.env.NODE_ENV=\"'production'\" --minify",
+    "build:ls": "yarn run compile:ls --define:process.env.NODE_ENV=\"'production'\" --minify",
+    "build": "concurrently \"npm:build:*\"",
+    "prepack": "yarn run build",
+    "prepare": "yarn run build",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --yarn -o .",
+    "watch:ext": "yarn run compile:ext --define:process.env.NODE_ENV=\"'development'\" --sourcemap",
+    "watch:ls": "yarn run compile:ls --define:process.env.NODE_ENV=\"'development'\" --sourcemap",
     "watch": "tsc -watch -p ./"
   },
   "keywords": [
@@ -41,13 +56,17 @@
   "dependencies": {
     "@sqltools/base-driver": "latest",
     "@sqltools/types": "latest",
-    "aws-sdk": "^2.868.0",
+    "aws-sdk": "^2.1078.0",
     "uuid": "^7.0.2"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.5.5",
+    "@babel/core": "^7.17.5",
+    "@babel/preset-env": "^7.16.11",
     "@types/node": "^14.0.9",
     "@types/vscode": "^1.42.0",
+    "concurrently": "^5.2.0",
+    "esbuild": "^0.6.34",
+    "rimraf": "^3.0.2",
     "typescript": "^3.7.3"
   }
 }
