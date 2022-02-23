@@ -4,6 +4,11 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "kill-terminal",
+            "type": "process",
+            "command": "${command:workbench.action.terminal.kill}"
+        },
+        {
             "label": "clean",
             "type": "npm",
             "script": "clean",

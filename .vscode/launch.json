@@ -12,6 +12,7 @@
                 "${workspaceFolder}/out/**/*.js"
             ],
             "preLaunchTask": "${defaultBuildTask}",
+            "postDebugTask": "kill-terminal",
             "env": {
                 "SQLTOOLS_DEBUG_PORT_LS": "6099"
             }
