@@ -1,4 +1,4 @@
-import { IBaseQueries, ContextValue, NSDatabase } from '@sqltools/types';
+import { IBaseQueries, NSDatabase } from '@sqltools/types';
 import queryFactory from '@sqltools/base-driver/dist/lib/factory';
 
 function escapeTableName(table: Partial<NSDatabase.ITable> | string) {
@@ -13,22 +13,9 @@ function escapeTableName(table: Partial<NSDatabase.ITable> | string) {
 
 /** write your queries here go fetch desired data. This queries are just examples copied from SQLite driver */
 
-const describeTable: IBaseQueries['describeTable'] = queryFactory`
-  SELECT C.*
-  FROM pragma_table_info('${p => p.label}') AS C
-  ORDER BY C.cid ASC
-`;
+const describeTable: IBaseQueries['describeTable'] = () => { throw new Error("Not Implemented: describeTable"); };
 
-const fetchColumns: IBaseQueries['fetchColumns'] = queryFactory`
-SELECT C.name AS label,
-  C.*,
-  C.type AS dataType,
-  C."notnull" AS isNullable,
-  C.pk AS isPk,
-  '${ContextValue.COLUMN}' as type
-FROM pragma_table_info('${p => p.label}') AS C
-ORDER BY cid ASC
-`;
+const fetchColumns: IBaseQueries['fetchColumns'] = () => { throw new Error("Not Implemented: fetchColumns"); };
 
 const fetchRecords: IBaseQueries['fetchRecords'] = queryFactory`
 SELECT *
@@ -42,51 +29,10 @@ SELECT count(1) AS total
 FROM ${p => escapeTableName(p.table)};
 `;
 
-const fetchTablesAndViews = (type: ContextValue, tableType = 'table'): IBaseQueries['fetchTables'] => queryFactory`
-SELECT name AS label,
-  '${type}' AS type
-FROM sqlite_master
-WHERE LOWER(type) LIKE '${tableType.toLowerCase()}'
-  AND name NOT LIKE 'sqlite_%'
-ORDER BY name
-`;
-
-const fetchTables: IBaseQueries['fetchTables'] = fetchTablesAndViews(ContextValue.TABLE);
-const fetchViews: IBaseQueries['fetchTables'] = fetchTablesAndViews(ContextValue.VIEW , 'view');
-
-const searchTables: IBaseQueries['searchTables'] = queryFactory`
-SELECT name AS label,
-  type
-FROM sqlite_master
-${p => p.search ? `WHERE LOWER(name) LIKE '%${p.search.toLowerCase()}%'` : ''}
-ORDER BY name
-`;
-
-const searchColumns: IBaseQueries['searchColumns'] = queryFactory`
-SELECT C.name AS label,
-  T.name AS "table",
-  C.type AS dataType,
-  C."notnull" AS isNullable,
-  C.pk AS isPk,
-  '${ContextValue.COLUMN}' as type
-FROM sqlite_master AS T
-LEFT OUTER JOIN pragma_table_info((T.name)) AS C ON 1 = 1
-WHERE 1 = 1
-${p => p.tables.filter(t => !!t.label).length
-  ? `AND LOWER(T.name) IN (${p.tables.filter(t => !!t.label).map(t => `'${t.label}'`.toLowerCase()).join(', ')})`
-  : ''
-}
-${p => p.search
-  ? `AND (
-    LOWER(T.name || '.' || C.name) LIKE '%${p.search.toLowerCase()}%'
-    OR LOWER(C.name) LIKE '%${p.search.toLowerCase()}%'
-  )`
-  : ''
-}
-ORDER BY C.name ASC,
-  C.cid ASC
-LIMIT ${p => p.limit || 100}
-`;
+const fetchTables: IBaseQueries['fetchTables'] = () => { throw new Error("Not Implemented: fetchTables"); };
+const fetchViews: IBaseQueries['fetchTables'] = () => { throw new Error("Not Implemented: fetchViews"); };
+const searchTables: IBaseQueries['searchTables'] = () => { throw new Error("Not Implemented: searchTables"); };
+const searchColumns: IBaseQueries['searchColumns'] = () => { throw new Error("Not Implemented: searchColumns"); };
 
 export default {
   describeTable,
