@@ -40,7 +40,8 @@
             "configurations": [
                 "Run Driver Extension",
                 "Attach SQLTools LS"
-            ]
+            ],
+            "stopAll": true
         }
     ]
 }
